@@ -5,7 +5,7 @@ import Producter from './producter';
 import Footer from './footer';
 import $ from 'jquery';
 import { stringify } from 'querystring'
-import Clock1 from './clock';
+import Clock1 from './clockDetail';
 class pageDetail extends Component {
   constructor(props) {
     super(props);
@@ -17,12 +17,22 @@ class pageDetail extends Component {
       imageIndex: 0,
       tempTen: [],
       tensp: "",
-      ms_phien:"",
-      taikhoan:"",
-      check:"",
-      giadau_min:1
+      ms_phien: "",
+      taikhoan: "",
+      check: "",
+      giadau_min: 1,
+      phieuthang: "",
+      tinhtrang_duocDauTiep: "",//Nếu mà ms_tìnhtrang là 1 thì người đó đã đấu với giá cao nhất rồi nên k cần đấu tiếp Ngược lại thì được phép đau
+      seconds: 0,
+      giadau_hientai: "",
+      userWin: "",
+      tempDathang: 0,
+      tempThanhcong: 0,
+      tempHetgio: 0,
+      ketqua: 0,
+      nguoidung:0,
     };
-    this.Daugia=this.Daugia.bind(this);
+    this.Daugia = this.Daugia.bind(this);
   }
   scriptTangGiam() {
     $('.btn-number').click(function (e) {
@@ -177,75 +187,192 @@ class pageDetail extends Component {
     }
     dots[index].className += " active";
   }
-  Daugia()
-  {
-    // Check user có trong phiên làm việc đó chưa nếu rồi trà về 1 chưa trả về 0
-    axios.get('/Detail/checkUserInPhien/phien='+this.state.ms_phien+'/id='+this.state.taikhoan)
-    .then((res)=>{
-      if(res.data===0)
-      {
-      // Insert 1 phiếu đấu
-      var body= {
-        giadau: this.refs.giadau.value,
-        taikhoan:this.state.taikhoan,
-        ms_phien:this.state.ms_phien,
-        status:0
-     }
-      axios({
-        method: 'post',
-        url: "/Detail/Daugiangay",
-        data:stringify(body),
-    })
-      }
-      if(res.data===1)
-      {
-        // Update phieu đấu
-        var body= {
-          giadau: this.refs.giadau.value,
-          taikhoan:this.state.taikhoan,
-          ms_phien:this.state.ms_phien,
-          status:1
-       }
-        axios({
-          method: 'post',
-          url: "/Detail/Daugiangay",
-          data:stringify(body),
+  Daugia() {
+    // Check user có trong phếu đấu chưa nếu rồi trà về 1 chưa trả về 0
+    axios.get('/Detail/checkUserInPhien/phien=' + this.state.ms_phien + '/id=' + this.state.taikhoan)
+      .then((res) => {
+        if (res.data === 0) {
+          // Insert 1 phiếu đấu
+          var body = {
+            giadau: this.refs.giadau.value,
+            taikhoan: this.state.taikhoan,
+            ms_phien: this.state.ms_phien,
+            status: 0
+          }
+          axios({
+            method: 'post',
+            url: "/Detail/Daugiangay",
+            data: stringify(body),
+          })
+            .then((res) => {
+              // Sau khi đấu giá cần phải update lại giá hiện tại và mã phiếu thắng trong phien_daugia
+              var body_updatePhien = {
+                phien: res.data.phieudau[0].ms_phien,
+                phieu: res.data.phieudau[0].ms_phieu,
+                giadau: res.data.phieudau[0].giadau,
+              }
+              axios({
+                method: 'put',
+                url: "/Detail/Daugiangay",
+                data: stringify(body_updatePhien),
+              })
+            })
+          this.setState({ tempThanhcong: 1 });
+        }
+        if (res.data === 1) {
+          // Update phieu đấu
+          var date=new Date();
+          var body = {
+            giadau: this.refs.giadau.value,
+            taikhoan: this.state.taikhoan,
+            ms_phien: this.state.ms_phien,
+            status: 1
+          }
+          axios({
+            method: 'post',
+            url: "/Detail/Daugiangay",
+            data: stringify(body),
+          })
+            .then((res) => {
+              var body_updatePhien = {
+                phien: res.data.phieudau[0].ms_phien,
+                phieu: res.data.phieudau[0].ms_phieu,
+                giadau: res.data.phieudau[0].giadau,
+              }
+              axios({
+                method: 'put',
+                url: "/Detail/Daugiangay",
+                data: stringify(body_updatePhien),
+              })
+            })
+          this.setState({ tempThanhcong: 1 });
+        }
+        if (res.data === -1) {
+          this.setState({ tempDathang: 1 })
+        }
+        if (res.data === 2) {
+          this.setState({ tempHetgio: 1 })
+        }
       })
-      }
-    })
-    .catch(err => console.log("Error"));
+      .catch(err => console.log("Error"));
   }
-  componentDidMount() {
-    
-    this.scriptHieuUngBtn();
-    this.scriptTangGiam();
+  tick() {
+    this.setState(prevState => ({
+      seconds: prevState.seconds + 1
+    }));
     axios.get('/users/login')
       .then(res => {
         if (!res.data.id) {
           window.location.href = "/login";
         }
         if (res.data.id) {
-          this.setState({ ten_hienthi: res.data.ten_hienthi });
-          axios.get('/serverDetail/' + this.props.match.params.id)
+          this.setState({ ten_hienthi: res.data.ten_hienthi,nguoidung:res.data.nguoidung });
+          axios.get('/serverDetail/phien=' + this.props.match.params.phien + '/id=' + this.props.match.params.id)
             .then(res => {
               this.setState({
                 arraySanpham: res.data.sanpham,
                 producter: res.data.loaisp, arrayHinh: res.data.hinh,
                 imageIndex: res.data.sanpham[0].hinhanh,
                 tempTen: res.data.sanpham,
-                ms_phien:res.data.sanpham[0].ms_phien,
-                taikhoan:res.data.taikhoan_id,
-                giadau_min:res.data.giadau[0].max
+                ms_phien: res.data.sanpham[0].ms_phien,
+                taikhoan: res.data.taikhoan_id,
+                giadau_hientai: res.data.sanpham[0].gia_hientai,
+                ketqua: res.data.ketqua
               })
-              this.refs.giadau.value=res.data.giadau[0].max;
-              this.setState({ tensp: this.state.tempTen[0].ten_sp});
+              if (res.data.userWin[0]) {
+                this.setState({
+                  userWin: res.data.userWin[0].ten_hienthi
+                })
+              }
+              if (!res.data.userWin[0]) {
+                this.setState({
+                  userWin: ""
+                })
+              }
+              // Gán giá trị nếu đầu zô mà input giá đấu không có 
+              if (!this.refs.giadau.value) {
+                if (res.data.giadau[0].max === null) {
+                  this.setState({ giadau_min: 1 });
+                  this.refs.giadau.value = 1;
+                }
+                if (res.data.giadau[0].max !== null) {
+                  this.setState({ giadau_min: res.data.giadau[0].max + 1 });
+                  this.refs.giadau.value = res.data.giadau[0].max + 1;
+                }
+              }
+              // K gán khi giá trị tồn tại
+              if (this.refs.giadau.value) {
+                // Nếu giá trị thẻ input giá đấu mà nhỏ hơn hoặc bằng thì mới gán .Trường hợp còn lại thì cho người dùng nhập
+                if (this.refs.giadau.value <= res.data.giadau[0].max) {
+                  // Nếu phiếu đấu chưa tổn tại
+                  if (res.data.giadau[0].max === null) {
+                    this.setState({ giadau_min: 1 });
+                    this.refs.giadau.value = 1;
+                  }
+                  //Nếu phiếu đâu tồn tại
+                  if (res.data.giadau[0].max != null) {
+                    this.setState({ giadau_min: res.data.giadau[0].max + 1 });
+                    this.refs.giadau.value = res.data.giadau[0].max + 1;
+                  }
+                }
+              }
+              this.setState({ tensp: this.state.tempTen[0].ten_sp });
             })
         }
       })
       .catch(err => console.log("Error"));
   }
-
+  autoThongbao() {
+    if (this.state.tempDathang === 1) {
+      this.setState({ tempDathang: 0 })
+    }
+    if (this.state.tempThanhcong === 1) {
+      this.setState({ tempThanhcong: 0 })
+    }
+    if (this.state.tempHetgio === 1) {
+      this.setState({ tempHetgio: 0 })
+    }
+  }
+  componentDidMount() {
+    setInterval(() => this.autoThongbao(), 1000 * 5)
+    this.interval = setInterval(() => this.tick(), 1000);
+    this.scriptHieuUngBtn();
+    this.scriptTangGiam();
+  }
   render() {
+    let Message, MessageEnd;
+    if (this.state.tempDathang === 1) {
+      Message = (
+        <div className="alert alert-danger daucaonhat">
+          Bạn đang là người có giá đấu cao nhất.
+        </div>
+      )
+    }
+    if (this.state.tempThanhcong === 1) {
+      Message = (
+        <div className="alert alert-success daucaonhat">
+          Giá thầu của bạn đã được chấp nhận.
+        </div>
+      )
+    }
+    if (this.state.tempHetgio === 1) {
+      Message = (
+        <div className="alert alert-info dathang">
+          Phiên đấu giá đã kết thúc.
+        </div>
+      )
+    }
+    if (this.state.ketqua === 1) {
+      MessageEnd = (
+        <div className="alert alert-success f_alertEnd">
+          <h3>Chúc mừng !</h3>
+          <p>Bạn đã thắng phiên đấu giá</p>
+          <p>Sản phẩm sẽ được chuyển về giỏ hàng trong ít phút.</p>
+          <a className="btn btn-warning col-md-4 col-md-offset-2">Phiên đấu giá khác</a>
+          <a className="btn btn-warning col-md-3 col-md-offset-1 ">Giỏ hàng</a>
+        </div>
+      )
+    }
     var elementsHinh = this.state.arraySanpham.map((sp, index) => {
       return <div className="mySlides" key={index}>
         <img className='imagesProduct' src={"/images/sanpham/" + sp.hinhanh + ".jpg"} />
@@ -257,7 +384,7 @@ class pageDetail extends Component {
       </div>
     })
     var elementsTime = this.state.arraySanpham.map((sp, index) => {
-      return <div className="time_dau" key={index}><Clock1 deadLine={sp.thoigiandau} masp={sp.mssp}/></div>
+      return <div className="time_dau" key={index}><Clock1 deadLine={sp.thoigiandau} masp={sp.mssp} /></div>
     })
     var elementsThongtin = this.state.arraySanpham.map((sp, index) => {
       return <p id="chitiet" className="collapse in" key={index}>{sp.dacta}</p>
@@ -266,7 +393,7 @@ class pageDetail extends Component {
       <div >
         <div>
           {/* Header */}
-          <HeaderNotImage ten_hienthi={this.state.ten_hienthi} />
+          <HeaderNotImage ten_hienthi={this.state.ten_hienthi} nguoidung={this.state.nguoidung}/>
           {/* end Header*/}
           <div className="row producter_index">
             {/* producter */}
@@ -292,7 +419,7 @@ class pageDetail extends Component {
                     <div className="info_detail">
                       <div className="info_left">
                         <span className="giahientai">Giá hiện tại:</span>
-                        <div className="tienhientai"><span>20</span>đ</div>
+                        <div className="tienhientai"><span>{this.state.giadau_hientai}</span>K</div>
                         <div className="daugiangay">Đấu giá ngay:</div>
                         <div className="btn_tanggiam">
                           <div className="input-group">
@@ -301,7 +428,7 @@ class pageDetail extends Component {
                                 <span className="glyphicon glyphicon-minus" />
                               </button>
                             </span>
-                            <input type="text" name="quant[1]" className="form-control input-number f_tiendau" ref="giadau" ref="giadau" min={this.state.giadau_min} max={100} />
+                            <input type="text" name="quant[1]" className="form-control input-number f_tiendau" ref="giadau" min={this.state.giadau_min} max={100} />
                             <span className="input-group-btn">
                               <button type="button" className="btn btn-default btn-number" data-type="plus" data-field="quant[1]">
                                 <span className="glyphicon glyphicon-plus" />
@@ -310,16 +437,19 @@ class pageDetail extends Component {
                           </div>
                         </div>
                         <div><button className="btn_daugia" onClick={this.Daugia}>Đấu giá ngay</button></div>
+
                         <div className="nguoithang">Người thắng hiện tại &nbsp;<span className="glyphicon glyphicon-user" />
                         </div>
-                        <div className="user_thang">thienle149</div>
+                        <div className="user_thang">{this.state.userWin}</div>
                       </div>
                       <div className="info_right">
                         <span className="thoigiandau">Thời gian đấu:</span>
                         {elementsTime}
                         <div className="dichvu">10% phí dịch vụ</div>
+                        {Message}
                       </div>
                     </div>
+                    {MessageEnd}
                   </div>
                   <div className="footer_detail">
                     <div className="chinhsach">
